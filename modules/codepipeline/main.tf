@@ -10,10 +10,10 @@ provider "github" {
 # or something like SSM Parameter Store.
 locals {
   webhook_secret = var.webhook_secret
-  webhook_url    = join("", aws_codepipeline_webhook.webhook.*.url)
+  webhook_url    = join("", aws_codepipeline_webhook.airview_codepipeline_webhook.*.url)
 }
 
-resource "aws_codepipeline" "this" {
+resource "aws_codepipeline" "airview_codepipeline" {
   name     = var.codepipeline_project_name
   role_arn = var.codepipeline_role
 
@@ -60,17 +60,17 @@ resource "aws_codepipeline" "this" {
   }
 }
 
-resource "aws_codestarconnections_connection" "this" {
+resource "aws_codestarconnections_connection" "airview_codestarconnections_connection" {
   name          = var.codestar_connection_name
   provider_type = var.provider_type
 }
 
-resource "aws_codepipeline_webhook" "webhook" {
+resource "aws_codepipeline_webhook" "airview_codepipeline_webhook" {
   count           = var.webhook_enabled ? 1 : 0
   name            = var.codepipeline_webhook_name
   authentication  = var.webhook_authentication
   target_action   = var.webhook_target_action
-  target_pipeline = join("", aws_codepipeline.this.*.name)
+  target_pipeline = join("", aws_codepipeline.airview_codepipeline.*.name)
 
   authentication_configuration {
     secret_token = local.webhook_secret

@@ -1,5 +1,5 @@
-resource "aws_cognito_resource_server" "resource" {
-  count      = var.enabled ? length(local.resource_servers) : 0
+resource "aws_cognito_resource_server" "airview_cognito_resource_server" {
+  count      = length(local.resource_servers)
   name       = lookup(element(local.resource_servers, count.index), "name")
   identifier = lookup(element(local.resource_servers, count.index), "identifier")
 
@@ -12,7 +12,7 @@ resource "aws_cognito_resource_server" "resource" {
     }
   }
 
-  user_pool_id = aws_cognito_user_pool.pool[0].id
+  user_pool_id = aws_cognito_user_pool.airview_cognito_user_pool.id
 }
 
 locals {
@@ -37,5 +37,4 @@ locals {
   ]
 
   resource_servers = length(var.resource_servers) == 0 && (var.resource_server_name == null || var.resource_server_name == "") ? [] : (length(var.resource_servers) > 0 ? local.resource_servers_parsed : local.resource_server_default)
-
 }

@@ -93,8 +93,8 @@ variable "monitoring_interval" {
 
 variable "monitoring_arn" {
   description = "ARN of monitoring role"
-  type = string
-  default = null
+  type        = string
+  default     = null
 }
 
 variable "auto_minor_version_upgrade" {
@@ -259,24 +259,24 @@ variable "ca_cert_identifier" {
 
 variable "enabled" {
   description = "Whether or not to create parameter groups"
-  type = bool
-  default = false
+  type        = bool
+  default     = false
 }
 
 variable "cluster_family" {
   description = "DB engine type and version"
-  type = string
-  default = null
+  type        = string
+  default     = null
 }
 
 variable "cluster_parameters" {
   description = "Parameter to assign to cluster"
-    type = list(object({
+  type = list(object({
     apply_method = string
     name         = string
     value        = string
   }))
-  default     = []
+  default = []
 }
 
 variable "instance_parameters" {
@@ -286,5 +286,5 @@ variable "instance_parameters" {
     name         = string
     value        = string
   }))
-  default     = []
+  default = []
 }

@@ -1,6 +1,4 @@
-resource "aws_cognito_user_pool" "pool" {
-  count = var.enabled ? 1 : 0
-
+resource "aws_cognito_user_pool" "airview_cognito_user_pool" {
   alias_attributes           = var.alias_attributes
   auto_verified_attributes   = var.auto_verified_attributes
   name                       = var.user_pool_name
@@ -192,7 +190,6 @@ resource "aws_cognito_user_pool" "pool" {
 
   # tags
   tags = var.tags
-
 }
 
 locals {
@@ -329,5 +326,4 @@ locals {
   }
 
   software_token_mfa_configuration = (length(var.sms_configuration) == 0 || local.sms_configuration == null) && var.mfa_configuration == "OFF" ? [] : [local.software_token_mfa_configuration_default]
-
 }

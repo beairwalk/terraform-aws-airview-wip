@@ -379,7 +379,7 @@ variable "domain" {
 }
 
 variable "domain_certificate_arn" {
-  description = "The ARN of an ISSUED ACM certificate in us-east-1 for a custom domain"
+  description = "The ARN of an ISSUED ACM certificate in eu-west-2 for a custom domain"
   type        = string
   default     = null
 }

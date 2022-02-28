@@ -6,13 +6,18 @@ provider "aws" {
   region = local.region
 }
 
+provider "aws" {
+  alias  = "edge"
+  region = "us-east-1"
+}
+
 # ----------------------------------------------------------------------------------------------------------------------
 # CREATE SOME LOCAL VARIABLES 
 # ----------------------------------------------------------------------------------------------------------------------
 
 locals {
-  name                              = "airview-dev-env"
-  region                            = "us-east-1"
+  name                              = "airview"
+  region                            = "eu-west-2"
   build_directory_path              = "${path.module}/template/build"
   lambda_common_libs_layer_path     = "${path.module}/template/nodejs"
   lambda_common_libs_layer_zip_name = "${local.build_directory_path}/function1.zip"
@@ -24,9 +29,9 @@ locals {
 
 terraform {
   backend "s3" {
-    bucket = "airview-dev-terraform-remote-state"
-    key    = "dev/terraform.tfstate"
-    region = "us-east-1"
+    bucket = "airwalk-airview-terraform"
+    key    = "terraform.tfstate"
+    region = "eu-west-2"
   }
 }
 
@@ -34,7 +39,7 @@ terraform {
 # GENERATE RANDOM PASSWORD FOR THE RDS DATABASE
 # ----------------------------------------------------------------------------------------------------------------------
 
-resource "random_password" "this" {
+resource "random_password" "rp" {
   length           = 16
   special          = true
   override_special = "_%"
@@ -44,7 +49,7 @@ resource "random_password" "this" {
 # GENERATE KMS ENCRYPTION KEY
 # ----------------------------------------------------------------------------------------------------------------------
 
-resource "aws_kms_key" "airveiw_kms_key" {
+resource "aws_kms_key" "airview_kms_key" {
   description             = "KMS key is used to encrypt bucket objects and other infrastructures"
   deletion_window_in_days = 7
 }
@@ -55,10 +60,11 @@ resource "aws_kms_key" "airveiw_kms_key" {
 
 module "airview_secrets_manager" {
   source             = "./modules/secrets_manager"
-  secret_name        = ["airview_rds_master_password"]
+  secret_name        = ["airview_rds_master_admin_password"]
   secret_description = "Master password for Airview RDS"
-  secret_string      = random_password.this.result
-  kms_key_id         = aws_kms_key.airveiw_kms_key.arn
+  secret_string      = random_password.rp.result
+  kms_key_id         = aws_kms_key.airview_kms_key.arn
+  recovery_window_in_days = "0"
   tags               = var.tags
 }
 
@@ -71,7 +77,7 @@ module "airview_rds_cluster" {
 
   name                         = "${local.name}-rds-cluster"
   master_username              = "aws_admin"
-  master_password              = random_password.this.result
+  master_password              = random_password.rp.result
   port                         = 3306
   backup_retention_period      = "7"
   preferred_maintenance_window = "Sun:22:00-Sun:22:30"
@@ -80,7 +86,7 @@ module "airview_rds_cluster" {
   copy_tags_to_snapshot        = true
   engine                       = "aurora-mysql"
   instance_type                = "db.t3.medium"
-  kms_key_id                   = aws_kms_key.airveiw_kms_key.arn
+  kms_key_id                   = aws_kms_key.airview_kms_key.arn
 
   tags           = var.tags
   enabled        = true
@@ -94,15 +100,14 @@ module "airview_rds_cluster" {
   ]
 }
 
-
 # ----------------------------------------------------------------------------------------------------------------------
 # CREATE AN S3 BUCKET
 # ----------------------------------------------------------------------------------------------------------------------
 
-module "airview_awssb22src_bucket" {
+module "airview_bucket" {
   source = "./modules/s3"
 
-  bucket_names       = ["awssb22src2022"]
+  bucket_names       = ["airwalk-airview"]
   acl                = "private"
   versioning_enabled = true
   force_destroy      = true
@@ -110,7 +115,7 @@ module "airview_awssb22src_bucket" {
   server_side_encryption_configuration = {
     rule = {
       apply_server_side_encryption_by_default = {
-        kms_master_key_id = aws_kms_key.airveiw_kms_key.arn
+        kms_master_key_id = aws_kms_key.airview_kms_key.arn
         sse_algorithm     = "aws:kms"
       }
     }
@@ -118,43 +123,17 @@ module "airview_awssb22src_bucket" {
   tags = var.tags
 }
 
-module "airview_airviewtest_bucket" {
-  source = "./modules/s3"
-
-  bucket_names       = ["airviewtest2022"]
-  acl                = "public-read"
-  versioning_enabled = true
-  force_destroy      = true
-
-  server_side_encryption_configuration = {
-    rule = {
-      apply_server_side_encryption_by_default = {
-        kms_master_key_id = aws_kms_key.airveiw_kms_key.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-
-  website = {
-    index_document = "index.html"
-    error_document = "error.html"
-  }
-
-  tags = var.tags
-}
-
-resource "aws_s3_bucket_policy" "cdn_policy" {
-  bucket = module.airview_airviewtest_bucket.s3_bucket_name_id[0]
-  policy = data.aws_iam_policy_document.origin.json
+resource "aws_s3_bucket_policy" "airview_bucket_policy" {
+  bucket = module.airview_bucket.s3_bucket_name_id[0]
+  policy = data.aws_iam_policy_document.airview_iam_policy_document.json
 }
 
 # Adds cloudfront and codebuild permission to the S3 bucket
-data "aws_iam_policy_document" "origin" {
-
+data "aws_iam_policy_document" "airview_iam_policy_document" {
   statement {
     sid       = "S3GetObjectForCloudFront"
     actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::${module.airview_airviewtest_bucket.s3_bucket_name_id[0]}/*"]
+    resources = ["arn:aws:s3:::${module.airview_bucket.s3_bucket_name_id[0]}/*"]
     principals {
       type        = "AWS"
       identifiers = ["${module.airview_cloudfront.cloudfront_origin_access_arn}"]
@@ -164,7 +143,7 @@ data "aws_iam_policy_document" "origin" {
   statement {
     sid       = "S3ListBucketForCloudFront"
     actions   = ["s3:ListBucket"]
-    resources = ["arn:aws:s3:::${module.airview_airviewtest_bucket.s3_bucket_name_id[0]}"]
+    resources = ["arn:aws:s3:::${module.airview_bucket.s3_bucket_name_id[0]}"]
     principals {
       type        = "AWS"
       identifiers = ["${module.airview_cloudfront.cloudfront_origin_access_arn}"]
@@ -174,7 +153,7 @@ data "aws_iam_policy_document" "origin" {
   statement {
     sid       = "S3FullforCodebuild"
     actions   = ["s3:*"]
-    resources = ["arn:aws:s3:::${module.airview_airviewtest_bucket.s3_bucket_name_id[0]}"]
+    resources = ["arn:aws:s3:::${module.airview_bucket.s3_bucket_name_id[0]}"]
     principals {
       type        = "AWS"
       identifiers = ["${module.codebuild_role.iam_role_arn}"]
@@ -189,17 +168,12 @@ data "aws_iam_policy_document" "origin" {
 # FETCH AWS CLOUDFRONT ORIGIN REQUEST POLICY
 # ----------------------------------------------------------------------------------------------------------------------
 
-data "aws_cloudfront_cache_policy" "policy" {
-  name = "Managed-CachingDisabled"
-}
-
-data "aws_cloudfront_origin_request_policy" "policy" {
-  name = "Managed-CORS-S3Origin"
-}
-
 module "airview_cloudfront" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source              = "./modules/cloudfront"
-  s3_bucket_names     = ["${module.airview_airviewtest_bucket.s3_bucket_name_id[0]}"]
+  s3_bucket_names     = ["${module.airview_bucket.s3_bucket_name_id[0]}"]
   lambda_arn          = module.lambda-edge.lambda_function_arn
   region              = "us-east-1"
   comment             = "Airview CloudFront created with Terraform"
@@ -209,19 +183,19 @@ module "airview_cloudfront" {
   default_root_object = "index.html"
 
   s3_origin_configs = [{
-    domain_name            = module.airview_airviewtest_bucket.s3_domain[0]
-    origin_id              = module.airview_airviewtest_bucket.s3_domain[0]
+    domain_name            = module.airview_bucket.s3_domain[0]
+    origin_id              = module.airview_bucket.s3_domain[0]
     origin_access_identity = module.airview_cloudfront.cloudfront_access_identity_path
     }
   ]
 
   default_cache_behavior = {
-    target_origin_id         = module.airview_airviewtest_bucket.s3_domain[0]
+    target_origin_id         = module.airview_bucket.s3_domain[0]
     viewer_protocol_policy   = "allow-all"
     allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods           = ["GET", "HEAD"]
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.policy.id
-    cache_policy_id          = data.aws_cloudfront_cache_policy.policy.id
+    origin_request_policy_id = resource.aws_cloudfront_origin_request_policy.airview_cloudfront_origin_request_policy.id
+    cache_policy_id          = resource.aws_cloudfront_cache_policy.airview_cloudfront_cache_policy.id
     compress                 = true
     viewer_protocol_policy   = "redirect-to-https"
 
@@ -259,95 +233,15 @@ module "airview_cloudfront" {
   }
 
   tags = var.tags
-
-}
-
-# ----------------------------------------------------------------------------------------------------------------------
-# CREATE THE LAMBDA FUNCTION
-# USE THE DATA VARIABLES TO : 
-# CREATE A ROLE FOR THE LAMBDA EDGE FUNCTION
-# CREATE A ZIP ARCHIVE FROM SOURCES
-# ADD COGNITO VALUES TO INDEX FILE USING TEMPLATE
-# ATTACH SOME DEFAULT POLICICES TO THE LAMBDA EDGE ROLE
-# CREATE THE INDEX.JS FILE FROM THE TEMPLATE
-# INSTALL THE NPM MODULE 
-# CREATE A LAMBDA LAYER VERSION
-# UPLOAD THE ZIP FILE TO S3 BUCKET
-# ----------------------------------------------------------------------------------------------------------------------
-
-data "template_file" "lambda_role_policy" {
-  template = file("${path.module}/policy/lambda_edge_policy.json.tpl")
-}
-
-module "lambda_edge_role" {
-  source             = "./modules/iam"
-  create_role        = true
-  role_name          = "${local.name}-lambda-edge-role"
-  role_description   = "Role which is used by Lambda"
-  assume_role_policy = data.template_file.lambda_role_policy.rendered
-}
-
-data "archive_file" "airview_lambda_common_libs_layer_package" {
-  type        = "zip"
-  source_dir  = local.lambda_common_libs_layer_path
-  output_path = local.lambda_common_libs_layer_zip_name
-  depends_on  = [null_resource.airview_lambda_nodejs_layer]
-}
-
-data "template_file" "lambda_template" {
-  template = file("${path.module}/template/index.js.tpl")
-  vars = {
-    poolId     = module.aws_cognito_airview_user_pool.user_pool_id
-    appId      = module.aws_cognito_airview_user_pool.client_ids
-    poolDomain = "airviewtest.auth.us-east-1.amazoncognito.com"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "role-policy-attachment" {
-  role       = module.lambda_edge_role.iam_role_name
-  count      = length(var.iam_policy_arn)
-  policy_arn = var.iam_policy_arn[count.index]
-}
-
-resource "local_file" "lambda_handler" {
-  filename = "${local.lambda_common_libs_layer_path}/index.js"
-  content  = data.template_file.lambda_template.rendered
-}
-
-resource "null_resource" "airview_lambda_nodejs_layer" {
-  depends_on = [local_file.lambda_handler]
-  provisioner "local-exec" {
-    working_dir = "${local.lambda_common_libs_layer_path}/"
-    command     = "npm install cognito-at-edge"
-  }
-
-  triggers = {
-    rerun_every_time = "${uuid()}"
-  }
-}
-
-resource "aws_lambda_layer_version" "airview_lambda_nodejs_layer" {
-  layer_name          = "commonLibs"
-  filename            = local.lambda_common_libs_layer_zip_name
-  source_code_hash    = data.archive_file.airview_lambda_common_libs_layer_package.output_base64sha256
-  compatible_runtimes = ["nodejs12.x"]
-}
-
-resource "aws_s3_bucket_object" "function" {
-  bucket = module.airview_awssb22src_bucket.s3_bucket_name_id[0]
-  key    = "function.zip"
-  source = data.archive_file.airview_lambda_common_libs_layer_package.output_path
-  depends_on = [
-    module.airview_awssb22src_bucket
-  ]
 }
 
 module "lambda-edge" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source = "./modules/lambda"
-
-  lambda_name = "${local.name}-mylambda"
-  description = "${local.name} - Lambda Function."
-
+  lambda_name      = "${local.name}"
+  description      = "${local.name} - Lambda Function."
   lambda_at_edge   = true
   runtime          = "nodejs12.x"
   handler_name     = "handler"
@@ -368,19 +262,26 @@ module "lambda-edge" {
   tags = var.tags
 }
 
+module "lambda_edge_role" {
+  providers = {
+    aws.edge = aws.edge
+  }
+  source             = "./modules/iam"
+  create_role        = true
+  role_name          = "${local.name}-lambda-edge-role"
+  role_description   = "Role which is used by Lambda"
+  assume_role_policy = templatefile("${path.module}/policy/lambda_edge_policy.json.tpl", {})
+}
+
 # ----------------------------------------------------------------------------------------------------------------------
 # CODEBUILD
 # CREATE A ROLE FOR THE CODEBUILD AND ATTACH A POLICY TO IT
 # ----------------------------------------------------------------------------------------------------------------------
 
-data "template_file" "codebuild_policy" {
-  template = file("${path.module}/policy/codebuild_policy.json.tpl")
-  vars = {
-    bucket_arn = module.airview_awssb22src_bucket.s3_codebuild_bucket_arn[0]
-  }
-}
-
 module "codebuild_role" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source           = "./modules/iam"
   create_role      = true
   role_name        = "${local.name}-codebuild-role"
@@ -402,15 +303,20 @@ module "codebuild_role" {
 EOF
   create_role_policy = true
   role_policy_name   = "codebuild_policy"
-  role_policy        = data.template_file.codebuild_policy.rendered
+  role_policy = templatefile("${path.module}/policy/codebuild_policy.json.tpl", {
+    bucket_arn = module.airview_bucket.s3_codebuild_bucket_arn[0]
+  })
 }
 
 module "airview_codebuild" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source        = "./modules/codebuild"
   project_name  = "${local.name}-codebuild"
   build_timeout = 60
   iam_role      = module.codebuild_role.iam_role_arn
-  build_bucket  = module.airview_awssb22src_bucket.s3_bucket_name_id[0]
+  build_bucket  = module.airview_bucket.s3_bucket_name_id[0]
 
   # Environment
   environment = {
@@ -471,7 +377,7 @@ module "airview_codebuild" {
 
   # Artifacts
   artifacts = {
-    location       = module.airview_airviewtest_bucket.s3_bucket_name_id[0]
+    location       = module.airview_bucket.s3_bucket_name_id[0]
     type           = "S3"
     path           = "/"
     packaging      = "NONE"
@@ -482,7 +388,7 @@ module "airview_codebuild" {
   codebuild_source_version = "master"
   codebuild_source = {
     type            = "GITHUB"
-    location        = #SOURCE GITHUB URL
+    location        = "https://github.com/AirWalk-Digital/terraform-aws-airview.git"
     git_clone_depth = 1
 
     git_submodules_config = {
@@ -498,16 +404,10 @@ module "airview_codebuild" {
 # CREATE A ROLE FOR THE CODEPIPELINE AND ATTACH A POLICY TO IT
 # ----------------------------------------------------------------------------------------------------------------------
 
-data "template_file" "codepipeline_policy" {
-  template = file("${path.module}/policy/codepipeline_policy.json.tpl")
-  vars = {
-    bucket_arn              = module.airview_awssb22src_bucket.s3_codebuild_bucket_arn[0]
-    codestar_connection_arn = module.airview_aws_codepipeline.codestar_connection_arn
-  }
-}
-
-
 module "codepipeline_role" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source           = "./modules/iam"
   create_role      = true
   role_name        = "${local.name}-codepipeline-role"
@@ -528,10 +428,12 @@ module "codepipeline_role" {
 }
 EOF
   create_role_policy = true
-  role_policy_name   = "codebpipeline_policy"
-  role_policy        = data.template_file.codepipeline_policy.rendered
+  role_policy_name   = "codepipeline_policy"
+  role_policy = templatefile("${path.module}/policy/codepipeline_policy.json.tpl", {
+    bucket_arn              = module.airview_bucket.s3_codebuild_bucket_arn[0]
+    codestar_connection_arn = module.airview_aws_codepipeline.codestar_connection_arn
+  })
 }
-
 
 module "airview_aws_codepipeline" {
   source = "./modules/codepipeline"
@@ -539,7 +441,7 @@ module "airview_aws_codepipeline" {
   codepipeline_project_name = "${local.name}-codepipeline"
   codepipeline_role         = module.codepipeline_role.iam_role_arn
 
-  s3_artifact_bucket      = module.airview_awssb22src_bucket.s3_bucket_name_id[0]
+  s3_artifact_bucket      = module.airview_bucket.s3_bucket_name_id[0]
   codestar_connection_arn = module.airview_aws_codepipeline.codestar_connection_arn
 
   repository_name = "satyashilD/codedeploy1"
@@ -578,6 +480,9 @@ module "aws_cognito_airview_user_pool" {
 # ----------------------------------------------------------------------------------------------------------------------
 
 module "api_gateway" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source                = "./modules/api_gateway"
   name                  = "${local.name}-api-gateway"
   method                = "GET"
@@ -585,7 +490,43 @@ module "api_gateway" {
   cognito_user_pool_arn = [module.aws_cognito_airview_user_pool.arn]
 }
 
+resource "aws_cloudfront_cache_policy" "airview_cloudfront_cache_policy" {
+  provider = aws.edge
+  name = "cache-policy"
 
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["example"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "whitelist"
+      query_strings {
+        items = ["example"]
+      }
+    }
+  }
+}
 
+resource "aws_cloudfront_origin_request_policy" "airview_cloudfront_origin_request_policy" {
+  provider = aws.edge
+  name = "origin-request-policy"
 
-
+  cookies_config {
+    cookie_behavior = "none"
+  }
+  headers_config {
+    header_behavior = "whitelist"
+    headers {
+      items = ["origin", "access-control-request-headers", "access-control-request-method"]
+    }
+  }
+  query_strings_config {
+    query_string_behavior = "none"
+  }
+}

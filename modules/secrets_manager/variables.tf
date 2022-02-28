@@ -1,4 +1,3 @@
-
 variable "rotation_rules" {
   description = "Whether or not to enable rotation"
   type        = bool

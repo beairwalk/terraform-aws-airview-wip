@@ -1,4 +1,5 @@
-resource "aws_cloudfront_origin_access_identity" "this" {
+resource "aws_cloudfront_origin_access_identity" "airview_cloudfront_origin_access_identity" {
+  provider = aws.edge
   comment = var.comment
 
   lifecycle {
@@ -6,7 +7,8 @@ resource "aws_cloudfront_origin_access_identity" "this" {
   }
 }
 
-resource "aws_cloudfront_distribution" "s3_distribution" {
+resource "aws_cloudfront_distribution" "airview_cloudfront_distribution" {
+  provider            = aws.edge
   price_class         = var.price_class
   enabled             = var.enabled
   default_root_object = var.default_root_object
@@ -17,7 +19,6 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
       domain_name            = o.domain_name
       origin_id              = o.origin_id
       origin_access_identity = o.origin_access_identity
-
     }]
 
     content {
@@ -116,44 +117,3 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
 
   tags = var.tags
 }
-
-resource "aws_cloudfront_cache_policy" "policy" {
-  name = "cache-policy"
-
-  parameters_in_cache_key_and_forwarded_to_origin {
-    cookies_config {
-      cookie_behavior = "none"
-    }
-    headers_config {
-      header_behavior = "whitelist"
-      headers {
-        items = ["example"]
-      }
-    }
-    query_strings_config {
-      query_string_behavior = "whitelist"
-      query_strings {
-        items = ["example"]
-      }
-    }
-  }
-}
-
-resource "aws_cloudfront_origin_request_policy" "policy" {
-  name = "origin-request-policy"
-  cookies_config {
-    cookie_behavior = "none"
-
-  }
-  headers_config {
-    header_behavior = "whitelist"
-    headers {
-      items = ["origin", "access-control-request-headers", "access-control-request-method"]
-    }
-  }
-  query_strings_config {
-    query_string_behavior = "none"
-  }
-}
-
-

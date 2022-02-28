@@ -141,7 +141,6 @@ variable "codebuild_source_version" {
   default     = null
 }
 
-
 variable "codebuild_source" {
   description = "Information about the project's input source code."
   type        = any

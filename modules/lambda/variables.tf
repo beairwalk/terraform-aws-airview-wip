@@ -129,8 +129,8 @@ variable "image_config_entry_point" {
   description = "The ENTRYPOINT for the docker image"
   type        = list(string)
   default     = []
-
 }
+
 variable "image_config_command" {
   description = "The CMD for the docker image"
   type        = list(string)
@@ -191,13 +191,11 @@ variable "file_system_local_mount_path" {
   default     = null
 }
 
-
 variable "timeout" {
   description = "(Optional) The amount of time the Lambda function has to run in seconds. For details see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html"
   type        = number
   default     = 3
 }
-
 
 variable "filename" {
   description = "(Optional) The path to the .zip file that contains the Lambda function source code."
@@ -218,7 +216,6 @@ variable "s3_key" {
 }
 
 variable "source_code_hash" {
-
 }
 
 variable "source_arn" {

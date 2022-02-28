@@ -7,9 +7,5 @@ terraform {
       version = "~> 3.74"
       configuration_aliases = [ aws.edge ]
     }
-    github = {
-      source  = "integrations/github"
-      version = "~> 4.0"
-    }
   }
 }

@@ -1,6 +1,6 @@
 variable "region" {
   description = "Region where the cloudfront will be created"
-  default     = "us-east-1"
+  default     = "eu-west-2"
   type        = string
 }
 

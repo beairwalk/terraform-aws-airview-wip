@@ -1,4 +1,4 @@
-resource "aws_codebuild_project" "this" {
+resource "aws_codebuild_project" "airview_codebuild_project" {
   name          = var.project_name
   build_timeout = var.build_timeout
   service_role  = var.iam_role
@@ -119,7 +119,4 @@ locals {
       git_submodules_config = lookup(var.codebuild_source, "git_submodules_config", null) == null ? var.codebuild_source_git_submodules_config : lookup(var.codebuild_source, "git_submodules_config")
     }
   ]
-
 }
-
-

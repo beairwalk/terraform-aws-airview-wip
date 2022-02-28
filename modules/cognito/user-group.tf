@@ -1,10 +1,10 @@
-resource "aws_cognito_user_group" "main" {
-  count        = var.enabled ? length(local.groups) : 0
+resource "aws_cognito_user_group" "airview_cognito_user_group" {
+  count        = length(local.groups)
   name         = lookup(element(local.groups, count.index), "name")
   description  = lookup(element(local.groups, count.index), "description")
   precedence   = lookup(element(local.groups, count.index), "precedence")
   role_arn     = lookup(element(local.groups, count.index), "role_arn")
-  user_pool_id = aws_cognito_user_pool.pool[0].id
+  user_pool_id = aws_cognito_user_pool.airview_cognito_user_pool.id
 }
 
 locals {
@@ -28,5 +28,4 @@ locals {
   ]
 
   groups = length(var.user_groups) == 0 && (var.user_group_name == null || var.user_group_name == "") ? [] : (length(var.user_groups) > 0 ? local.groups_parsed : local.groups_default)
-
 }

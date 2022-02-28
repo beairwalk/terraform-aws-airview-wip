@@ -46,7 +46,7 @@ module "aws_cognito_airview_user_pool" {
   email_configuration = {
     email_sending_account  = "DEVELOPER"
     reply_to_email_address = "email@example.com"
-    source_arn             = "arn:aws:ses:us-east-1:888888888888:identity/example.com"
+    source_arn             = "arn:aws:ses:eu-west-2:888888888888:identity/example.com"
   }
 
   password_policy = {

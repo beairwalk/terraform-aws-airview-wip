@@ -1,4 +1,4 @@
-resource "aws_secretsmanager_secret" "this" {
+resource "aws_secretsmanager_secret" "airview_secretsmanager_secret" {
   count = length(var.secret_name)
 
   name                    = element(var.secret_name, count.index)
@@ -9,9 +9,9 @@ resource "aws_secretsmanager_secret" "this" {
   tags                    = var.tags
 }
 
-resource "aws_secretsmanager_secret_version" "this" {
+resource "aws_secretsmanager_secret_version" "airview_secretsmanager_secret_version" {
   count = length(var.secret_name)
 
-  secret_id     = aws_secretsmanager_secret.this[count.index].id
+  secret_id     = aws_secretsmanager_secret.airview_secretsmanager_secret[count.index].id
   secret_string = var.secret_string
 }

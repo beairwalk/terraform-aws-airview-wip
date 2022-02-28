@@ -1,5 +1,5 @@
-resource "aws_lambda_function" "this" {
-
+resource "aws_lambda_function" "airview_lambda_function" {
+  provider                       = aws.edge
   filename                       = var.lambda_zip_path
   function_name                  = var.lambda_name
   description                    = var.description
@@ -10,7 +10,7 @@ resource "aws_lambda_function" "this" {
   memory_size                    = var.memory_size
   reserved_concurrent_executions = var.reserved_concurrent_executions
   layers                         = var.layers
-  publish                        = var.lambda_at_edge ? true : var.publish
+  publish                        = true
   kms_key_arn                    = var.kms_key_arn
   image_uri                      = var.image_uri
   package_type                   = var.package_type
@@ -18,7 +18,6 @@ resource "aws_lambda_function" "this" {
   s3_bucket                      = var.s3_bucket
   s3_key                         = var.s3_key
   source_code_hash               = var.source_code_hash
-
 
   dynamic "image_config" {
     for_each = length(var.image_config_entry_point) > 0 || length(var.image_config_command) > 0 || var.image_config_working_directory != null ? [true] : []
@@ -69,29 +68,32 @@ resource "aws_lambda_function" "this" {
   tags = var.tags
 }
 
-resource "aws_lambda_function_event_invoke_config" "this" {
-  function_name                = aws_lambda_function.this.function_name
-  qualifier                    = aws_lambda_function.this.version
+resource "aws_lambda_function_event_invoke_config" "airview_lambda_function_event_invoke_config" {
+  provider                     = aws.edge
+  function_name                = aws_lambda_function.airview_lambda_function.function_name
+  qualifier                    = aws_lambda_function.airview_lambda_function.version
   maximum_event_age_in_seconds = var.event_age_in_seconds
   maximum_retry_attempts       = var.retry_attempts
 
   depends_on = [
-    aws_lambda_function.this
+    aws_lambda_function.airview_lambda_function
   ]
 }
 
-resource "aws_lambda_function_event_invoke_config" "latest" {
-  function_name                = aws_lambda_function.this.function_name
+resource "aws_lambda_function_event_invoke_config" "airview_lambda_function_event_invoke_config_latest" {
+  provider                     = aws.edge
+  function_name                = aws_lambda_function.airview_lambda_function.function_name
   qualifier                    = "$LATEST"
   maximum_event_age_in_seconds = var.event_age_in_seconds
   maximum_retry_attempts       = var.retry_attempts
 
   depends_on = [
-    aws_lambda_function.this
+    aws_lambda_function.airview_lambda_function
   ]
 }
 
-resource "aws_lambda_permission" "apigw_lambda" {
+resource "aws_lambda_permission" "airview_lambda_permission" {
+  provider           = aws.edge
   action             = var.action
   event_source_token = var.event_source_token
   function_name      = var.lambda_function_name
@@ -102,12 +104,10 @@ resource "aws_lambda_permission" "apigw_lambda" {
   source_arn         = var.source_arn
 }
 
-resource "aws_cloudwatch_log_group" "this" {
+resource "aws_cloudwatch_log_group" "airview_cloudwatch_log_group" {
+  provider          = aws.edge
   name              = format("/aws/lambda/%s", var.lambda_name)
   retention_in_days = var.log_retention
 
   tags = var.tags
 }
-
-
-

@@ -1,4 +1,4 @@
-resource "aws_rds_cluster" "this" {
+resource "aws_rds_cluster" "airview_rds_cluster" {
   global_cluster_identifier           = var.global_cluster_identifier
   cluster_identifier                  = var.name
   replication_source_identifier       = var.replication_source_identifier
@@ -46,8 +46,7 @@ resource "aws_rds_cluster" "this" {
   tags = var.tags
 }
 
-resource "aws_rds_cluster_parameter_group" "default" {
-  count       = var.enabled ? 1 : 0
+resource "aws_rds_cluster_parameter_group" "airview_rds_cluster_parameter_group" {
   name        = var.name
   description = "DB cluster parameter group"
   family      = var.cluster_family
@@ -64,11 +63,11 @@ resource "aws_rds_cluster_parameter_group" "default" {
   tags = var.tags
 }
 
-resource "aws_rds_cluster_instance" "this" {
+resource "aws_rds_cluster_instance" "airview_rds_cluster_instance" {
   count = var.replica_scale_enabled ? var.replica_scale_min : var.replica_count
 
   identifier                      = "${var.name}-${count.index + 1}"
-  cluster_identifier              = aws_rds_cluster.this.id
+  cluster_identifier              = aws_rds_cluster.airview_rds_cluster.id
   engine                          = var.engine
   engine_version                  = var.engine_version
   instance_class                  = var.instance_type
@@ -88,7 +87,7 @@ resource "aws_rds_cluster_instance" "this" {
   tags = var.tags
 }
 
-resource "aws_db_parameter_group" "default" {
+resource "aws_db_parameter_group" "airview_db_parameter_group" {
   count       = var.enabled ? 1 : 0
   name        = var.name
   description = "DB instance parameter group"

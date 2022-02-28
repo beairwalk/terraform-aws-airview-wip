@@ -1,5 +1,5 @@
-resource "aws_cognito_user_pool_client" "client" {
-  count                                = var.enabled ? length(local.clients) : 0
+resource "aws_cognito_user_pool_client" "airview_cognito_user_pool_client" {
+  count                                = length(local.clients)
   allowed_oauth_flows                  = lookup(element(local.clients, count.index), "allowed_oauth_flows", null)
   allowed_oauth_flows_user_pool_client = lookup(element(local.clients, count.index), "allowed_oauth_flows_user_pool_client", null)
   allowed_oauth_scopes                 = lookup(element(local.clients, count.index), "allowed_oauth_scopes", null)
@@ -16,7 +16,7 @@ resource "aws_cognito_user_pool_client" "client" {
   supported_identity_providers         = lookup(element(local.clients, count.index), "supported_identity_providers", null)
   prevent_user_existence_errors        = lookup(element(local.clients, count.index), "prevent_user_existence_errors", null)
   write_attributes                     = lookup(element(local.clients, count.index), "write_attributes", null)
-  user_pool_id                         = aws_cognito_user_pool.pool[0].id
+  user_pool_id                         = aws_cognito_user_pool.airview_cognito_user_pool.id
 
   # token_validity_units
   dynamic "token_validity_units" {
@@ -29,8 +29,8 @@ resource "aws_cognito_user_pool_client" "client" {
   }
 
   depends_on = [
-    aws_cognito_resource_server.resource,
-    aws_cognito_identity_provider.identity_provider
+    aws_cognito_resource_server.airview_cognito_resource_server,
+    aws_cognito_identity_provider.airview_cognito_identity_provider
   ]
 }
 
@@ -80,5 +80,4 @@ locals {
   ]
 
   clients = length(var.clients) == 0 && (var.client_name == null || var.client_name == "") ? [] : (length(var.clients) > 0 ? local.clients_parsed : local.clients_default)
-
 }

@@ -1,4 +1,4 @@
-resource "aws_s3_bucket" "airview-project-buckets" {
+resource "aws_s3_bucket" "airview_bucket" {
   count         = length(var.bucket_names)
   bucket        = element(var.bucket_names, count.index)
   acl           = var.acl != "null" ? var.acl : null
@@ -90,7 +90,6 @@ resource "aws_s3_bucket" "airview-project-buckets" {
   }
 
   tags = var.tags
-
 }
 
 /*

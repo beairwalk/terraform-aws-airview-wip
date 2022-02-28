@@ -3,6 +3,7 @@ variable "bucket_names" {
   type        = list(any)
   default     = null
 }
+
 variable "codebuild_bucket" {
   description = "The name of the buckets that will be created"
   default     = null
@@ -113,4 +114,3 @@ variable "lifecycle_rules" {
   }))
   default = []
 }
-
