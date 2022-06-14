@@ -12,7 +12,7 @@ provider "aws" {
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
-# CREATE SOME LOCAL VARIABLES 
+# CREATE SOME LOCAL VARIABLES
 # ----------------------------------------------------------------------------------------------------------------------
 
 locals {
@@ -105,9 +105,34 @@ module "airview_rds_cluster" {
 # ----------------------------------------------------------------------------------------------------------------------
 
 module "airview_bucket" {
+  providers = {
+    aws.edge = aws.edge
+  }
   source = "./modules/s3"
 
   bucket_names       = ["airwalk-airview"]
+  acl                = "private"
+  versioning_enabled = true
+  force_destroy      = true
+
+  server_side_encryption_configuration = {
+    rule = {
+      apply_server_side_encryption_by_default = {
+        kms_master_key_id = aws_kms_key.airview_kms_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+  tags = var.tags
+}
+
+module "airview_bucket_cf" {
+  providers = {
+    aws.edge = aws.edge
+  }
+  source = "./modules/s3"
+
+  bucket_names       = ["airwalk-airview-cf"]
   acl                = "private"
   versioning_enabled = true
   force_destroy      = true
@@ -163,7 +188,7 @@ data "aws_iam_policy_document" "airview_iam_policy_document" {
 
 # ----------------------------------------------------------------------------------------------------------------------
 # CREATE THE CLOUDFRONT FOR THE APPLICATION
-# USE THE DATA VARIABLES TO : 
+# USE THE DATA VARIABLES TO :
 # FETCH AWS MANAGED CACHE POLICY
 # FETCH AWS CLOUDFRONT ORIGIN REQUEST POLICY
 # ----------------------------------------------------------------------------------------------------------------------
@@ -271,6 +296,59 @@ module "lambda_edge_role" {
   role_name          = "${local.name}-lambda-edge-role"
   role_description   = "Role which is used by Lambda"
   assume_role_policy = templatefile("${path.module}/policy/lambda_edge_policy.json.tpl", {})
+}
+
+data "archive_file" "airview_lambda_common_libs_layer_package" {
+  type        = "zip"
+  source_dir  = local.lambda_common_libs_layer_path
+  output_path = local.lambda_common_libs_layer_zip_name
+  depends_on  = [null_resource.airview_lambda_nodejs_layer]
+}
+
+resource "aws_iam_role_policy_attachment" "role-policy-attachment" {
+  provider = aws.edge
+  role       = module.lambda_edge_role.iam_role_name
+  count      = length(var.iam_policy_arn)
+  policy_arn = var.iam_policy_arn[count.index]
+}
+
+resource "local_file" "lambda_handler" {
+  filename = "${local.lambda_common_libs_layer_path}/index.js"
+  content  = templatefile("${path.module}/template/index.js.tpl", {
+    poolId     = module.aws_cognito_airview_user_pool.user_pool_id
+    appId      = module.aws_cognito_airview_user_pool.client_ids
+    poolDomain = "airviewtest.auth.us-east-1.amazoncognito.com"
+  })
+}
+
+resource "null_resource" "airview_lambda_nodejs_layer" {
+  depends_on = [local_file.lambda_handler]
+  provisioner "local-exec" {
+    working_dir = "${local.lambda_common_libs_layer_path}/"
+    command     = "npm install cognito-at-edge"
+  }
+
+  triggers = {
+    rerun_every_time = "${uuid()}"
+  }
+}
+
+resource "aws_lambda_layer_version" "airview_lambda_nodejs_layer" {
+  provider = aws.edge
+  layer_name          = "nodejs/node_modules"
+  filename            = local.lambda_common_libs_layer_zip_name
+  source_code_hash    = data.archive_file.airview_lambda_common_libs_layer_package.output_base64sha256
+  compatible_runtimes = ["nodejs12.x"]
+}
+
+resource "aws_s3_bucket_object" "function" {
+  provider = aws.edge
+  bucket = module.airview_bucket_cf.s3_bucket_name_id[0]
+  key    = "function.zip"
+  source = data.archive_file.airview_lambda_common_libs_layer_package.output_path
+  depends_on = [
+    module.airview_bucket_cf
+  ]
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -400,7 +478,7 @@ module "airview_codebuild" {
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
-# CODEPIPELINE 
+# CODEPIPELINE
 # CREATE A ROLE FOR THE CODEPIPELINE AND ATTACH A POLICY TO IT
 # ----------------------------------------------------------------------------------------------------------------------
 
